@@ -15,6 +15,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import tempfile
 
+
 # ---------------- CONFIG ----------------
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 st.set_page_config(page_title="Hybrid Quantum MRI Classifier", page_icon="🧠", layout="wide")
@@ -104,18 +105,39 @@ transform = transforms.Compose([
 # ============================================================
 # 5️⃣ Helper: Load NIfTI slice
 # ============================================================
+
+
 def nii_to_pil_slices(nii_file):
-    # Save uploaded Streamlit file to a temporary path
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as tmp:
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(nii_file.name).suffix) as tmp:
         tmp.write(nii_file.read())
         tmp_path = tmp.name
 
-    # Load the NIfTI image from the saved temp file
+    # Load NIfTI data
     img = nib.load(tmp_path).get_fdata()
-    z = img.shape[2] // 2
-    slice_ = img[:, :, z]
-    slice_ = (255 * (slice_ - np.min(slice_)) / np.ptp(slice_)).astype(np.uint8)
+    img = np.asarray(img, dtype=np.float32)
+
+    # Handle different shapes safely
+    if img.ndim == 2:
+        slice_ = img  # already 2D
+    elif img.ndim == 3:
+        z = img.shape[2] // 2
+        slice_ = img[:, :, z]
+    elif img.ndim == 4:
+        # Some NIfTI files store multiple volumes
+        vol = img[:, :, :, 0]
+        z = vol.shape[2] // 2
+        slice_ = vol[:, :, z]
+    else:
+        raise ValueError(f"Unsupported NIfTI dimensions: {img.shape}")
+
+    # Normalize and convert to RGB
+    slice_ = slice_ - np.min(slice_)
+    if np.max(slice_) > 0:
+        slice_ = slice_ / np.max(slice_)
+    slice_ = (slice_ * 255).astype(np.uint8)
     return Image.fromarray(slice_).convert("RGB")
+
 
 # ============================================================
 # 6️⃣ File Upload Interface
