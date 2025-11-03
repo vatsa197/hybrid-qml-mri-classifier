@@ -13,6 +13,7 @@ from PIL import Image
 from torchvision import models, transforms
 from pathlib import Path
 import matplotlib.pyplot as plt
+import tempfile
 
 # ---------------- CONFIG ----------------
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -104,7 +105,13 @@ transform = transforms.Compose([
 # 5️⃣ Helper: Load NIfTI slice
 # ============================================================
 def nii_to_pil_slices(nii_file):
-    img = nib.load(nii_file).get_fdata()
+    # Save uploaded Streamlit file to a temporary path
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".nii") as tmp:
+        tmp.write(nii_file.read())
+        tmp_path = tmp.name
+
+    # Load the NIfTI image from the saved temp file
+    img = nib.load(tmp_path).get_fdata()
     z = img.shape[2] // 2
     slice_ = img[:, :, z]
     slice_ = (255 * (slice_ - np.min(slice_)) / np.ptp(slice_)).astype(np.uint8)
